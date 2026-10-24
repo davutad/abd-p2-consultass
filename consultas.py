@@ -29,24 +29,24 @@ otra fecha), así que para contar eventos hay que usar `_id`.
 # Devuelve, por cada género: genero, n (número de artistas) y artistas (lista
 # de nombres, ORDENADA). Ordenado por n descendente y, a igualdad, por genero.
 C1 = [
-    {"$sort": {"nombre": 1}},
-    {"$unwind": "$generos"},
+    {"$sort": {"nombre": 1}}, # Ordena los artistas por orden alfaebtico
+    {"$unwind": "$generos"}, # Descompone el array generos de cada artista dependiendo del genero
     {
         "$group": {
-            "_id": "$generos",
-            "n": {"$sum":1},
-            "artistas": {"$push", "$nombre"}
+            "_id": "$generos", # Se agrupa por genero
+            "n": {"$sum":1}, # Cuenta el numero de artistas con ese genero
+            "artistas": {"$push":"$nombre"} # Agrega el nombre del artista al array en el orden que entraron del sort
         }
     },
     {
         "$project": {
-            "_id": 0,
-            "genero": "$_id",
-            "n": 1,
-            "artistas": 1
+            "_id": 0, # Suprime el campo _id
+            "genero": "$_id", # Renombra el campo _id a genero
+            "n": 1, # Mantenemos el campo n
+            "artistas": 1 # Mantenemos el campo artistas
         }
     },
-    {"$sort": {"n": -1, "genero": 1}}
+    {"$sort": {"n": -1, "genero": 1}} #Ordena el resultado por n de artistas desdecendente y en caso de empate alfabetico por genero
 ]
 
 # ── C2 · Ocupación media por recinto ────────────────────────────────────────
@@ -57,29 +57,29 @@ C1 = [
 C2 = [
     {
         "$lookup": {
-            "from": "recinto",
-            "localField": "recinto",
-            "foreignField": "nombre",
-            "as": "datos_recinto",
+            "from": "recinto", # Coleccion con la que vamos a hacer el join
+            "localField": "recinto", # Campo de la coleccion evento que se corresopnde con el de la coleccion recinto
+            "foreignField": "nombre", # Campo de la coleccion evento que se corresponde con el campo de la coleccion recinto
+            "as": "datos_recinto", # Almacena los datos del recinto en un array llamado datos_recinto
         }
     },
-    {"$unwind": "$datos_recinto"},
+    {"$unwind": "$datos_recinto"}, # Convertimos el array datos_recinto en un objeto plano
     {
         "$group": {
-            "_id": "$recinto",
-            "eventos": {"$sum": 1},
-            "ocupacion_media_ratio": {"$avg": {"$divide": ["$entradas_vendidas", "$datos_recinto.aforo"]}}
+            "_id": "$recinto", # Agrupamos por recinto
+            "eventos": {"$sum": 1}, # Contamos el total de evento en ese recinto
+            "ocupacion_media_ratio": {"$avg": {"$divide": ["$entradas_vendidas", "$datos_recinto.aforo"]}} # Se calcula el promedio de la division entre entradas vendidas y el aforo del recinto obteniendo el ratio
         }
     },
     {
         "$project": {
-            "_id": 0,
-            "recinto": "$_id",
-            "eventos": 1,
-            "ocupacion_media": {"$round": [{"$multiply": ["$ocupacion_media_ratio", 100]}, 1]},
+            "_id": 0, # Suprime el campo _id
+            "recinto": "$_id", # Renombramos el campo _id a recinto
+            "eventos": 1, # Mantenemos el campo eventos
+            "ocupacion_media": {"$round": [{"$multiply": ["$ocupacion_media_ratio", 100]}, 1]}, # Se multiplica el ratio por 100 para pasarlo a porcentaje y lo redondea a 1 decimal
         }
     },
-    {"$sort": {"ocupacion_media": -1, "recinto": 1}}
+    {"$sort": {"ocupacion_media": -1, "recinto": 1}} # Ordenamos por ocupacion_media descendente y por recinto asceendente en caso de empate
 ]
 
 # ── C3 · Ingresos por mes ───────────────────────────────────────────────────
@@ -88,27 +88,27 @@ C2 = [
 # Devuelve, por cada mes: mes (formato "AAAA-MM"), ingresos redondeados a dos
 # decimales y eventos (número de eventos de ese mes). Ordenado por mes.
 C3 = [
-    {"$unwind": "$precios_por_zona"},
+    {"$unwind": "$precios_por_zona"}, # Se desglosa la zona de precios de cada evento para calcular el ingreso de cada zona por separado
     {"$addFields": {
-        "ingreso_por_zona": {"$multiply": ["$precios_por_zona.precio", "$precios_por_zona.vendidas"]}
+        "ingreso_por_zona": {"$multiply": ["$precios_por_zona.precio", "$precios_por_zona.vendidas"]} # Se calcula el dinero recaudado en esa zona especifica
     }},
     {"$group": {
-        "_id": "$_id",
-        "ingresos_totales": {"$sum": "$ingreso_por_zona"},
-        "mes": {"$first": {"$dateToString": {"format": "%Y-%m", "date": "$fecha"}}},
+        "_id": "$_id", # Agrupamos por evento
+        "ingresos_totales": {"$sum": "$ingreso_por_zona"}, # Suma los ingresos de todas las zonas
+        "mes": {"$first": {"$dateToString": {"format": "%Y-%m", "date": "$fecha"}}}, # Extrae el mes sobre la fecha del evento
     }},
     {"$group": {
-        "_id": "$mes",
-        "ingresos": {"$sum": "$ingresos_totales"},
-        "eventos": {"$sum": 1},
+        "_id": "$mes", # Agrupamos por mes
+        "ingresos": {"$sum": "$ingresos_totales"}, # Suma los ingresos de todos los eventos de ese mes
+        "eventos": {"$sum": 1}, # Cuenta exactamente 1 por evento, obteniendo el total de eventos de ese mes
     }},
     {"$project": {
-        "_id": 0,
-        "mes": "$_id",
-        "ingresos": {"$round": ["$ingresos", 2]},
-        "eventos": 1,
+        "_id": 0, # Suprimimos el campo _id
+        "mes": "$_id", # Renombramos el campo _id a mes
+        "ingresos": {"$round": ["$ingresos", 2]}, # Se redondea el campo ingresos a 2 decimales
+        "eventos": 1, # Mantenemos el campo eventos
     }},
-    {"$sort": {"mes": 1}},
+    {"$sort": {"mes": 1}}, # Ordenamos cronologicamente ascendente por mes
 ]
 
 # ── C4 · Los tres artistas más programados ──────────────────────────────────
@@ -117,20 +117,20 @@ C3 = [
 # recintos (número de recintos DISTINTOS en los que ha actuado). Ordenado por
 # actuaciones descendente y, a igualdad, por artista.
 C4 = [
-    {"$unwind": "$artistas"},
+    {"$unwind": "$artistas"}, # Separamos para contar cada actuacion individualmente
     {"$group": {
-        "_id": "$artistas",
-        "actuaciones": {"$sum": 1},
-        "recintos": {"$addToSet": "$recinto"},
+        "_id": "$artistas", # Agrupamos por artista
+        "actuaciones": {"$sum": 1}, # Contamos el numero de actuaciones de cada artista
+        "recintos": {"$addToSet": "$recinto"}, # Se acumulan en un set los nombres de los recitnos sin duplicados
     }},
     {"$project": {
-        "_id": 0,
-        "artista": "$_id",
-        "actuaciones": 1,
-        "recintos": {"$size": "$recintos"},
+        "_id": 0, # Se suprime el campo _id
+        "artista": "$_id", # Se renombra el campo _id a artista
+        "actuaciones": 1, # Se mantiene el campo actuaciones
+        "recintos": {"$size": "$recintos"}, # Se calcula el tam del set de recintos obteniendo el numero de recintos distintos
     }},
-    {"$sort": {"actuaciones": -1, "artista": 1}},
-    {"$limit": 3},
+    {"$sort": {"actuaciones": -1, "artista": 1}}, # Ordenamos por actuaciones de forma descendente
+    {"$limit": 3}, # Limitamos el resultado a los 3 primeros
 ]
 
 # ── C5 · Recintos a menos de 5 km de la Puerta del Sol ──────────────────────
@@ -140,22 +140,22 @@ C4 = [
 # decimales, y eventos (número de eventos de ese recinto).
 C5 = [
     {"$geoNear": {
-        "near": {"type": "Point", "coordinates": [-3.7038, 40.4168]},
-        "distanceField": "distancia",
-        "maxDistance": 5000,
-        "spherical": True,
+        "near": {"type": "Point", "coordinates": [-3.7038, 40.4168]}, # Punto de referencia 
+        "distanceField": "distancia", # Campo donde se almacen la distancia calculada
+        "maxDistance": 5000, # Maxima distancia en metros
+        "spherical": True, # Se calcula la distancia en un radio de 5 km
     }},
     {"$lookup": {
-        "from": "evento",
-        "localField": "nombre",
-        "foreignField": "recinto",
-        "as": "datos_evento",
+        "from": "evento", # Es la coleccion con la que se va hacer el join
+        "localField": "nombre", # Es el campo de la coleccion recinto que se corresopnde con el campo de la coleccion eventos
+        "foreignField": "recinto", # Es el campo de la coleccion evento que se corresponde con el campo de la coleccion recinto
+        "as": "datos_evento", # Almacena los datos del evento en un array llamando datos_evento
     }},
     {"$project": {
-        "_id": 0,
-        "recinto": "$nombre",
-        "ciudad": 1,
-        "distancia_km": {"$round": [{"$divide": ["$distancia", 1000]}, 2]},
+        "_id": 0, # Suprimimos el campo _id
+        "recinto": "$nombre", # Renombramos el campo nombre a recinto
+        "ciudad": 1, # Mantenemos el campo ciudad
+        "distancia_km": {"$round": [{"$divide": ["$distancia", 1000]}, 2]}, # Se calcula las distancias en kilometros dividiendo en 10
         "eventos": {"$size": "$datos_evento"},
     }},
 ]
@@ -193,7 +193,35 @@ C6 = [
 # Devuelve, por franja: franja y eventos. Ordenado por eventos descendente y,
 # a igualdad, por franja.
 C7 = [
-    # TODO
+    {"$lookup": {
+        "from": "recinto",
+        "localField": "recinto",
+        "foreignField": "nombre",
+        "as": "datos_recinto"
+    }},
+    {"$unwind": "$datos_recinto"},
+    {"$addFields": {
+        "franja": {
+            "$switch": {
+                "branches": [
+                    {"case": {"$gte": [{"$divide": ["$entradas_vendidas", "$datos_recinto.aforo"]}, 0.99]}, "then": "agotado"},
+                    {"case": {"$gte": [{"$divide": ["$entradas_vendidas", "$datos_recinto.aforo"]}, 0.85]}, "then": "alta"},
+                    {"case": {"$gte": [{"$divide": ["$entradas_vendidas", "$datos_recinto.aforo"]}, 0.70]}, "then": "media"}
+                ],
+                "default": "baja"
+            }
+        }
+    }},
+    {"$group": {
+        "_id": "$franja",
+        "eventos": {"$sum": 1}
+    }},
+    {"$project": {
+        "_id": 0,
+        "franja": "$_id",
+        "eventos": 1
+    }},
+    {"$sort": {"eventos": -1, "franja": 1}}
 ]
 
 # ── C8 · Informe materializado por recinto ──────────────────────────────────
@@ -204,7 +232,29 @@ C7 = [
 # reemplazarla, de modo que se conserven los campos que se le hayan añadido
 # por fuera.
 C8 = [
-    # TODO
+    {"$unwind": "$precios_por_zona"},
+    {"$group": {
+        "_id": "$recinto",
+        "ingresos": {"$sum": {"$multiply": ["$precios_por_zona.precio", "$precios_por_zona.vendidas"]}},
+        "eventos": {"$addToSet": "$_id"},
+    }},
+    {"$lookup": {
+        "from": "recinto",
+        "localField": "_id",
+        "foreignField": "nombre",
+        "as": "datos_recinto",
+    }},
+    {"$project": {
+        "ingresos": 1,
+        "eventos": {"$size": "$eventos"},
+        "aforo": {"$arrayElemAt": ["$datos_recinto.aforo", 0]},
+    }},
+    {"$merge": {
+        "into": "informe_recintos",
+        "on": "_id",
+        "whenMatched": "merge",
+        "whenNotMatched": "insert",
+    }},
 ]
 
 
